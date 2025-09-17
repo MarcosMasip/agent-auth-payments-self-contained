@@ -2,7 +2,157 @@
 
 A monorepo containing a Agent with Auth and Payments application with LangGraph agents and Next.js UI.
 
-## 🏗️ Architecture
+## 🏗️ Architecture — Self‑Contained Mode
+
+This fork makes the original fullstack repo runnable 100% locally without external services. It keeps the same UX (auth, pricing/checkout, credits, chat) and swaps the backend integrations behind the scenes when Local Mode is enabled.
+
+Why this change? To let anyone clone, run, and evaluate the full experience with zero cloud setup while preserving compatibility with the original deployment paths (Supabase/Stripe/LangGraph Cloud) when you later switch Local Mode off.
+
+## What’s different from the original repo?
+
+- Auth:
+   - Original: Supabase Auth (JWT, RLS) with user/session state.
+   - Self‑Contained Mode: Local JWT auth (HttpOnly cookie `local_session`) and a local users table via SQLite/Prisma.
+- Database:
+   - Original: Supabase Postgres with schema from `supabase-schema.sql`.
+   - Self‑Contained Mode: SQLite file database managed by Prisma (no cloud DB).
+- Payments/Credits:
+   - Original: Stripe Checkout + webhooks to grant credits.
+   - Self‑Contained Mode: Mock checkout session that instantly grants credits matching the selected plan (no Stripe calls).
+- LLM/Agents:
+   - Original: Real model providers (OpenAI/Anthropic) and optional tools (e.g., Tavily search).
+   - Self‑Contained Mode: MockChatModel returns deterministic responses; Tavily tool is mocked to avoid external API keys.
+- LangGraph server:
+   - Original: You’d deploy to LangGraph Cloud or run locally.
+   - Self‑Contained Mode: A local LangGraph server runs at http://localhost:2025 and the Next.js app proxies to it.
+
+Importantly, the HTTP surface and UI flow are the same. When you flip off Local Mode, the app reuses the original Supabase/Stripe integrations.
+
+## Prerequisites
+
+- Node.js 18+ (Node 20+ recommended)
+- pnpm (Corepack will prompt to download if missing)
+- macOS, Linux, or Windows (this guide uses macOS paths)
+
+## One‑time setup (installs + DB)
+
+Run this from the repo root:
+
+```sh
+pnpm run setup:self-contained
+```
+
+What to expect:
+- pnpm installs dependencies in all workspaces
+- Approve build scripts when prompted (Prisma, esbuild, etc.)
+- Prisma generates the client and pushes the schema to a local SQLite file at `apps/web/.data/dev.db`
+
+Config files created by default:
+- `apps/web/.env.local` with:
+   - `LOCAL_MODE=true`, `NEXT_PUBLIC_LOCAL_MODE=true`
+   - `DATABASE_URL="file:./.data/dev.db"`
+   - `NEXT_PUBLIC_API_URL=http://localhost:2025` (agents)
+   - A default `LOCAL_JWT_SECRET`
+- `apps/agents/.env.local` with `LOCAL_MODE=true` and the same `LOCAL_JWT_SECRET`
+
+## Start everything (one command)
+
+From the repo root:
+
+```sh
+pnpm run dev:self-contained
+```
+
+What to expect:
+- Next.js dev server on http://localhost:3002 (it may pick 3001/3002 if 3000 is in use; the URL is printed)
+- LangGraph local server on http://localhost:2025
+
+If a port is busy, the command will either auto-pick a new one (Next.js) or print an EADDRINUSE error (LangGraph). See Troubleshooting.
+
+## Try it out
+
+1) Open the app: http://localhost:3002
+2) Sign up → Sign in (Local Mode)
+    - The app sets an HttpOnly cookie `local_session` and shows you as authenticated.
+3) Go to Pricing and click “Subscribe now” on any plan
+    - In Local Mode, you won’t be redirected to Stripe. You’ll be taken directly to the success page.
+    - Your credits are granted automatically according to the plan.
+4) Start a chat
+    - Messages stream from the local LangGraph server.
+    - Credits decrement per message (mock deduction logic; can be tuned).
+
+## Commands reference and expected output
+
+- One‑time setup
+   ```sh
+   pnpm run setup:self-contained
+   ```
+   Expect to see Prisma client generation and DB push logs like:
+   - “Generated Prisma Client …”
+   - “SQLite database dev.db created …” or “already in sync …”
+
+- Run both services (Local Mode)
+   ```sh
+   pnpm run dev:self-contained
+   ```
+   Expect:
+   - Next.js banner with the Local URL (e.g., http://localhost:3002)
+   - LangGraph banner with API URL (http://localhost:2025) and “Server running at …”
+
+- Start agents only
+   ```sh
+   pnpm --filter agents run dev:self-contained
+   ```
+   Expect LangGraph banner and “Server running at ::1:2025”. If port 2025 is taken, add `--port 2026`.
+
+- Start web only
+   ```sh
+   pnpm --filter web run dev:self-contained
+   ```
+   Expect Next.js dev banner; it will show the chosen http://localhost:30xx URL.
+
+## How Local Mode works (under the hood)
+
+- Feature flag: `LOCAL_MODE=true` and `NEXT_PUBLIC_LOCAL_MODE=true`
+- Auth: `/api/auth/signup`, `/api/auth/signin`, `/api/auth/session`, `/api/auth/signout` set/verify a signed local JWT stored in `local_session` cookie.
+- DB: Prisma schema under `apps/web/prisma/schema.prisma`; client in `src/lib/db/client.ts`. User credits/subscription helpers in `src/lib/db/users.ts`.
+- Checkout: `/api/create-checkout-session` returns a mock `sessionId` and immediately grants credits via `upsertSubscriptionFromPrice`.
+- Agents: `apps/agents/src/security/auth.ts` checks `Authorization: Bearer <JWT>` and verifies with `LOCAL_JWT_SECRET`. Tools like Tavily are mocked when `LOCAL_MODE=true`.
+- Passthrough: `apps/web/src/app/api/[..._path]/route.ts` proxies to `NEXT_PUBLIC_API_URL` (the LangGraph server URL).
+
+## Switching back to the original (cloud) mode
+
+Set `LOCAL_MODE=false` (and remove `NEXT_PUBLIC_LOCAL_MODE`) in both apps’ env files, then configure the original services:
+- Supabase: set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`.
+- Stripe: set `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, and webhook secret if you re-enable webhooks.
+- LLM providers: set your API keys (OpenAI/Anthropic) and restore any real tools like Tavily.
+
+## Troubleshooting
+
+- Port in use (agents 2025):
+   - Stop existing: `pkill -f langgraphjs`
+   - Or change port: `pnpm --filter agents run dev:self-contained -- --port 2026` and set `NEXT_PUBLIC_API_URL=http://localhost:2026` in `apps/web/.env.local`.
+
+- Next.js picks a different port than 3000
+   - That’s expected if 3000 is busy. Use the URL printed in the console.
+
+- TypeScript error about PrismaClient
+   - We import Prisma client in a way that is robust with Next/TS bundling. If you adjust TS config, regenerate client: `pnpm --filter web exec prisma generate`.
+
+- “Authorization header missing” from agents
+   - Make sure you’re signed in locally so the app can forward the JWT to agents. The StreamProvider includes the `Authorization: Bearer <JWT>` header when a session is present.
+
+## Repo structure (unchanged high‑level)
+
+```
+apps/
+   web/     # Next.js UI with local auth/DB and API routes
+   agents/  # LangGraph.js server with Local Mode auth & mock tools
+```
+
+## License
+
+MIT
 
 This monorepo contains two main applications:
 
