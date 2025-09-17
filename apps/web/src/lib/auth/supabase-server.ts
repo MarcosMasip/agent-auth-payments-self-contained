@@ -22,5 +22,4 @@ export function getSupabaseServerClient() {
   });
 }
 
-// Export a singleton instance
-export const supabaseServer = getSupabaseServerClient();
+// Note: Do not export a singleton to avoid throwing during import when Local Mode is enabled.

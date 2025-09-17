@@ -1,7 +1,6 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { SupabaseAuthProvider } from "@/lib/auth/supabase-utils";
 import { createAuthProvider } from "@/lib/auth/provider-factory";
 import {
   AuthProvider as CustomAuthProvider,

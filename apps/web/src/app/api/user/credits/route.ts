@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/auth/supabase-server";
+import { getSupabaseServerClient } from "@/lib/auth/supabase-server";
 import { isLocalMode } from "@/lib/environment";
 import { ensureUserRecord } from "@/lib/db/users";
 
@@ -28,7 +28,8 @@ export async function GET(request: Request) {
     }
 
     // External mode: Supabase
-    const { data: userData, error } = await supabaseServer
+  const supabaseServer = getSupabaseServerClient();
+  const { data: userData, error } = await supabaseServer
       .from("users")
       .select("credits_available, subscription_status, price_id")
       .eq("id", userId)

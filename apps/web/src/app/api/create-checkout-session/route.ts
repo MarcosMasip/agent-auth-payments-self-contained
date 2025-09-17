@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { supabaseServer } from "@/lib/auth/supabase-server";
+import { getSupabaseServerClient } from "@/lib/auth/supabase-server";
 import { isLocalMode } from "@/lib/environment";
 import { getCreditLimitByPriceId } from "@/lib/stripe-config";
 import { upsertSubscriptionFromPrice } from "@/lib/db/users";
 
 type SessionCreateParams = Stripe.Checkout.SessionCreateParams;
 
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
+// Initialize Stripe lazily only in External Mode
 
 export async function POST(request: Request) {
   try {
@@ -52,12 +51,14 @@ export async function POST(request: Request) {
         { status: 500 },
       );
     }
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
     // Get or create Stripe customer
     let customerId: string;
 
     // Check if user already has a Stripe customer ID
-    const { data: userData, error: userError } = await supabaseServer
+  const supabaseServer = getSupabaseServerClient();
+  const { data: userData, error: userError } = await supabaseServer
       .from("users")
       .select("stripe_customer_id, email")
       .eq("id", userId)

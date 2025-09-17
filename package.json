@@ -11,6 +11,8 @@
   "scripts": {
     "build": "pnpm -r build",
     "dev": "pnpm -r --parallel dev",
+  "dev:self-contained": "pnpm --filter web setup:self-contained && (pnpm --filter web dev:self-contained & pnpm --filter agents dev:self-contained)",
+    "setup:self-contained": "pnpm --filter web setup:self-contained",
     "lint": "pnpm -r lint",
     "lint:fix": "pnpm -r lint:fix",
     "format": "pnpm -r format",

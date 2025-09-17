@@ -113,7 +113,7 @@ function PricingContent() {
       const { sessionId, successUrl } = await createCheckoutSession({
         priceId,
         userId: user.id,
-        customerEmail: user.email,
+        customerEmail: user.email ?? "",
       });
 
       if (isLocalMode()) {

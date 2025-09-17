@@ -1,4 +1,5 @@
 import { initChatModel } from "langchain/chat_models/universal";
+import { MockChatModel } from "./mock-model.js";
 
 /**
  * Load a chat model from a fully specified name.
@@ -6,13 +7,14 @@ import { initChatModel } from "langchain/chat_models/universal";
  * @returns A Promise that resolves to a BaseChatModel instance.
  */
 export async function loadChatModel(fullySpecifiedName: string) {
+  if (process.env.LOCAL_MODE === "true") {
+    return new MockChatModel();
+  }
   const index = fullySpecifiedName.indexOf("/");
   if (index === -1) {
-    // If there's no "/", assume it's just the model
     return await initChatModel(fullySpecifiedName);
-  } else {
-    const provider = fullySpecifiedName.slice(0, index);
-    const model = fullySpecifiedName.slice(index + 1);
-    return await initChatModel(model, { modelProvider: provider });
   }
+  const provider = fullySpecifiedName.slice(0, index);
+  const model = fullySpecifiedName.slice(index + 1);
+  return await initChatModel(model, { modelProvider: provider });
 }

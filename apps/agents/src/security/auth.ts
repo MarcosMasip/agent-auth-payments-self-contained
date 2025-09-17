@@ -1,8 +1,7 @@
 import { Auth, HTTPException } from "@langchain/langgraph-sdk/auth";
 import { User } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./supabase-client.js";
-
-const supabase = getSupabaseClient();
+import jwt from "jsonwebtoken";
 
 const STUDIO_USER_ID = "langgraph-studio-user";
 
@@ -49,7 +48,7 @@ export const auth = new Auth()
       method: request.method,
       headers: headersObj,
     });
-    // Parse Authorization header
+  // Parse Authorization header
     const authHeader = request.headers.get("authorization");
     if (!authHeader) {
       throw new HTTPException(401, { message: "Authorization header missing" });
@@ -64,26 +63,33 @@ export const auth = new Auth()
         message: "Invalid authorization header format",
       });
     }
-    if (!supabase) {
-      throw new HTTPException(500, {
-        message: "Supabase client not initialized",
-      });
-    }
-    // Validate JWT with Supabase
+    // Local Mode: verify signed JWT from web app directly
+    const localMode = process.env.LOCAL_MODE === "true";
     let user: User | null = null;
-    try {
-      const { data, error } = await supabase.auth.getUser(token);
-      if (error || !data?.user) {
-        throw new Error(error?.message || "User not found");
+    if (localMode) {
+      try {
+        const decoded = jwt.verify(token, process.env.LOCAL_JWT_SECRET || "dev_local_jwt_secret_change_me") as { sub: string };
+        user = { id: decoded.sub } as unknown as User;
+      } catch (e: any) {
+        throw new HTTPException(401, { message: `Invalid local token: ${e.message}` });
       }
-      user = data.user;
-      if (!user) {
-        throw new HTTPException(401, { message: "User not found" });
+    } else {
+      const supabase = getSupabaseClient();
+      // Validate JWT with Supabase
+      try {
+        const { data, error } = await supabase.auth.getUser(token);
+        if (error || !data?.user) {
+          throw new Error(error?.message || "User not found");
+        }
+        user = data.user;
+        if (!user) {
+          throw new HTTPException(401, { message: "User not found" });
+        }
+      } catch (e: any) {
+        throw new HTTPException(401, {
+          message: `Authentication error: ${e.message}`,
+        });
       }
-    } catch (e: any) {
-      throw new HTTPException(401, {
-        message: `Authentication error: ${e.message}`,
-      });
     }
     return {
       identity: user.id,

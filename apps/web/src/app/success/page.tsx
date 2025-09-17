@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useUser } from "@/lib/auth/supabase-client";
+import { useAuthContext } from "@/providers/Auth";
 import { Navbar } from "@/components/navbar";
 import Link from "next/link";
 
@@ -26,7 +26,7 @@ interface SubscriptionDetails {
 export default function SuccessPage() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
-  const { user } = useUser();
+  const { user } = useAuthContext();
 
   const [loading, setLoading] = useState(true);
   const [subscriptionDetails, setSubscriptionDetails] =

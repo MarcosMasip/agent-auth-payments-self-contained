@@ -1,7 +1,7 @@
 function env(name: string): string | undefined {
   // Use globalThis to avoid requiring Node types
-  // @ts-expect-error optional chaining on process in browser
-  return globalThis?.process?.env?.[name] ?? (typeof window !== "undefined" ? (window as any)?.[name] : undefined);
+  // optional chaining on process in browser-safe way
+  return (globalThis as any)?.process?.env?.[name] ?? (typeof window !== "undefined" ? (window as any)?.[name] : undefined);
 }
 
 export function isLocalMode() {

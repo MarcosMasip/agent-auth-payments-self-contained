@@ -8,5 +8,6 @@
   "env": ".env",
   "auth": {
     "path": "./src/security/auth.ts:auth"
-  }
+  },
+  "port": 2025
 }
