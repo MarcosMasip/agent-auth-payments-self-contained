@@ -5,7 +5,18 @@ function env(name: string): string | undefined {
 }
 
 export function isLocalMode() {
-  return env("LOCAL_MODE") === "true" || env("NEXT_PUBLIC_LOCAL_MODE") === "true";
+  // In client bundles, prefer a direct reference so Next.js can inline
+  // the value of NEXT_PUBLIC_LOCAL_MODE at build time.
+  if (typeof window !== "undefined") {
+    if (process.env.NEXT_PUBLIC_LOCAL_MODE === "true") return true;
+  }
+  // Fallback for server/edge environments and tests
+  return (
+    (typeof process !== "undefined" && process.env.LOCAL_MODE === "true") ||
+    (typeof process !== "undefined" && process.env.NEXT_PUBLIC_LOCAL_MODE === "true") ||
+    env("LOCAL_MODE") === "true" ||
+    env("NEXT_PUBLIC_LOCAL_MODE") === "true"
+  );
 }
 
 export function getLocalJwtSecret() {

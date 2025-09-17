@@ -8,7 +8,7 @@ import React, {
   ReactNode,
 } from "react";
 import { useAuthContext } from "@/providers/Auth";
-import { supabase } from "@/lib/auth/supabase-client";
+import { getSupabaseClient } from "@/lib/auth/supabase-client";
 import { isLocalMode } from "@/lib/environment";
 
 interface CreditsContextProps {
@@ -54,6 +54,7 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
         }
         setCredits((data?.credits as number) ?? 0);
       } else {
+        const supabase = getSupabaseClient();
         const { data, error: supabaseError } = await supabase
           .from("users")
           .select("credits_available")

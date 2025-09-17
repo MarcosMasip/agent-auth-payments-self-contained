@@ -60,8 +60,9 @@ type User = {
   email: string;
 } | null;
 
-// Export the client instance for direct use
-export const supabase = getSupabaseClient();
+// Note: Do not export a pre-initialized client here to avoid import-time
+// failures when Supabase env vars are not set (e.g., Local Mode). Always call
+// getSupabaseClient() at the point of use in non-local flows.
 
 export function useUser() {
   const [user, setUser] = useState<User>(null);

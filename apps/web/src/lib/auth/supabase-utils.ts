@@ -8,13 +8,17 @@ import {
   AuthProviderOptions,
 } from "./types";
 import { getSupabaseClient } from "./supabase-client";
+import { isLocalMode } from "@/lib/environment";
 
 export class SupabaseAuthProvider implements AuthProvider {
-  private supabase;
+  private supabase: ReturnType<typeof getSupabaseClient> | null = null;
   private options: AuthProviderOptions;
 
   constructor(options: AuthProviderOptions = {}) {
-    this.supabase = getSupabaseClient();
+    // Do not initialize Supabase in Local Mode to avoid env errors.
+    if (!isLocalMode()) {
+      this.supabase = getSupabaseClient();
+    }
     this.options = {
       shouldPersistSession: true,
       redirectUrl:
@@ -86,6 +90,7 @@ export class SupabaseAuthProvider implements AuthProvider {
 
   async signUp(credentials: AuthCredentials) {
     try {
+      if (!this.supabase) throw new Error("Supabase auth is disabled in Local Mode");
       const { data, error } = await this.supabase.auth.signUp({
         email: credentials.email,
         password: credentials.password,
@@ -113,6 +118,7 @@ export class SupabaseAuthProvider implements AuthProvider {
 
   async signIn(credentials: AuthCredentials) {
     try {
+      if (!this.supabase) throw new Error("Supabase auth is disabled in Local Mode");
       const { data, error } = await this.supabase.auth.signInWithPassword({
         email: credentials.email,
         password: credentials.password,
@@ -136,6 +142,7 @@ export class SupabaseAuthProvider implements AuthProvider {
 
   async signInWithGoogle() {
     try {
+      if (!this.supabase) throw new Error("Supabase auth is disabled in Local Mode");
       const { data, error } = await this.supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -170,6 +177,7 @@ export class SupabaseAuthProvider implements AuthProvider {
 
   async signOut() {
     try {
+      if (!this.supabase) throw new Error("Supabase auth is disabled in Local Mode");
       const { error } = await this.supabase.auth.signOut();
       if (error) throw error;
 
@@ -181,6 +189,7 @@ export class SupabaseAuthProvider implements AuthProvider {
 
   async getSession() {
     try {
+      if (!this.supabase) return null;
       const { data, error } = await this.supabase.auth.getSession();
 
       if (error) throw error;
@@ -194,6 +203,7 @@ export class SupabaseAuthProvider implements AuthProvider {
 
   async refreshSession() {
     try {
+      if (!this.supabase) return null;
       const { data, error } = await this.supabase.auth.refreshSession();
 
       if (error) throw error;
@@ -207,6 +217,7 @@ export class SupabaseAuthProvider implements AuthProvider {
 
   async getCurrentUser() {
     try {
+      if (!this.supabase) return null;
       const { data, error } = await this.supabase.auth.getUser();
 
       if (error) throw error;
@@ -220,6 +231,7 @@ export class SupabaseAuthProvider implements AuthProvider {
 
   async updateUser(attributes: Partial<User>) {
     try {
+      if (!this.supabase) throw new Error("Supabase auth is disabled in Local Mode");
       // Convert our User attributes to Supabase format
       const metadata: Record<string, any> = {
         ...attributes.metadata,
@@ -266,6 +278,7 @@ export class SupabaseAuthProvider implements AuthProvider {
 
   async resetPassword(email: string) {
     try {
+      if (!this.supabase) throw new Error("Supabase auth is disabled in Local Mode");
       const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${this.options.redirectUrl}/reset-password`,
       });
@@ -280,6 +293,7 @@ export class SupabaseAuthProvider implements AuthProvider {
 
   async updatePassword(newPassword: string) {
     try {
+      if (!this.supabase) throw new Error("Supabase auth is disabled in Local Mode");
       const { error } = await this.supabase.auth.updateUser({
         password: newPassword,
       });
@@ -293,14 +307,13 @@ export class SupabaseAuthProvider implements AuthProvider {
   }
 
   onAuthStateChange(callback: AuthStateChangeCallback) {
+    if (!this.supabase) {
+      // No-op in Local Mode; AuthProvider will use local provider instead.
+      return { unsubscribe: () => {} };
+    }
     const { data } = this.supabase.auth.onAuthStateChange((_event, session) => {
       callback(this.formatSession(session));
     });
-
-    return {
-      unsubscribe: () => {
-        data.subscription.unsubscribe();
-      },
-    };
+    return { unsubscribe: () => data.subscription.unsubscribe() };
   }
 }

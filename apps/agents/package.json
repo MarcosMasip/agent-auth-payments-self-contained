@@ -37,6 +37,7 @@
     "langchain": "^0.3.14"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "@eslint/eslintrc": "^3.1.0",
     "@eslint/js": "^9.9.1",
     "@langchain/langgraph-cli": "0.0.66",

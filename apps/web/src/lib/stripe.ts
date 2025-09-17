@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/auth/supabase-client";
+import { getSupabaseClient } from "@/lib/auth/supabase-client";
 import { isLocalMode } from "@/lib/environment";
 
 type CheckoutSessionParams = {
@@ -69,6 +69,7 @@ export async function addUserCredits(userId: string, creditsToAdd: number) {
     }
 
     // External mode: Supabase
+    const supabase = getSupabaseClient();
     const { data: currentUser } = await supabase
       .from("users")
       .select("credits_available")
@@ -113,6 +114,7 @@ export async function deductUserCredits(
     }
 
     // External mode: Supabase
+    const supabase = getSupabaseClient();
     const { data: currentUser, error: fetchError } = await supabase
       .from("users")
       .select("credits_available")
