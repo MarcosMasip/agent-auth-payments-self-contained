@@ -31,14 +31,17 @@ Importantly, the HTTP surface and UI flow are the same. When you flip off Local 
 ## Prerequisites
 
 - Node.js 18+ (Node 20+ recommended)
-- pnpm (Corepack will prompt to download if missing)
-- macOS, Linux, or Windows (this guide uses macOS paths)
+- pnpm (recommended via Corepack). If pnpm isn’t available, enable it with:
+   - macOS/Linux: `corepack enable && corepack prepare pnpm@latest --activate`
+   - Windows (PowerShell): `corepack enable; corepack prepare pnpm@latest --activate`
+- Works on macOS, Linux, and Windows
 
-## One‑time setup (installs + DB)
+## One‑time setup (install deps + DB)
 
-Run this from the repo root:
+From the repo root:
 
-```sh
+```bash
+pnpm install
 pnpm run setup:self-contained
 ```
 
@@ -59,7 +62,7 @@ Config files created by default:
 
 From the repo root:
 
-```sh
+```bash
 pnpm run dev:self-contained
 ```
 
@@ -130,8 +133,19 @@ Set `LOCAL_MODE=false` (and remove `NEXT_PUBLIC_LOCAL_MODE`) in both apps’ env
 ## Troubleshooting
 
 - Port in use (agents 2025):
-   - Stop existing: `pkill -f langgraphjs`
-   - Or change port: `pnpm --filter agents run dev:self-contained -- --port 2026` and set `NEXT_PUBLIC_API_URL=http://localhost:2026` in `apps/web/.env.local`.
+    - macOS/Linux: stop existing `langgraphjs` process
+       ```bash
+       pkill -f langgraphjs
+       ```
+    - Windows (PowerShell): stop process on port 2025
+       ```powershell
+       for /f "tokens=5" %a in ('netstat -aon ^| find ":2025" ^| find "LISTEN"') do taskkill /f /pid %a
+       ```
+    - Or change port (all OSes):
+       ```bash
+       pnpm --filter agents run dev:self-contained -- --port 2026
+       ```
+       Then set `NEXT_PUBLIC_API_URL=http://localhost:2026` in `apps/web/.env.local`.
 
 - Next.js picks a different port than 3000
    - That’s expected if 3000 is busy. Use the URL printed in the console.

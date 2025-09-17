@@ -17,7 +17,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "langgraphjs dev --no-browser",
-  "dev:self-contained": "LOCAL_MODE=true langgraphjs dev --no-browser --port 2025",
+  "dev:self-contained": "cross-env LOCAL_MODE=true langgraphjs dev --no-browser --port 2025",
     "clean": "rm -rf dist",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=\\.test\\.ts$ --testPathIgnorePatterns=\\.int\\.test\\.ts$",
     "test:int": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=\\.int\\.test\\.ts$",
