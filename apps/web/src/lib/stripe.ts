@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/auth/supabase-client";
+import { isLocalMode } from "@/lib/environment";
 
 type CheckoutSessionParams = {
   priceId: string;
@@ -56,7 +57,18 @@ export async function getCustomerSubscription(userId: string) {
 
 export async function addUserCredits(userId: string, creditsToAdd: number) {
   try {
-    // Add credits to user's balance
+    if (isLocalMode()) {
+      const res = await fetch("/api/user/credits/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, amount: creditsToAdd }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to add credits");
+      return { success: true, newBalance: data.newBalance as number };
+    }
+
+    // External mode: Supabase
     const { data: currentUser } = await supabase
       .from("users")
       .select("credits_available")
@@ -70,7 +82,7 @@ export async function addUserCredits(userId: string, creditsToAdd: number) {
       .from("users")
       .update({
         credits_available: newCredits,
-        subscription_status: "active", // Ensure user has active status when adding credits
+        subscription_status: "active",
       })
       .eq("id", userId);
 
@@ -88,7 +100,19 @@ export async function deductUserCredits(
   creditsToDeduct: number,
 ) {
   try {
-    // Deduct credits from user's balance
+    if (isLocalMode()) {
+      const res = await fetch("/api/user/credits/deduct", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, amount: creditsToDeduct }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to deduct credits");
+      if (data.success === false) return { success: false, newBalance: data.newBalance as number };
+      return { success: true, newBalance: data.newBalance as number };
+    }
+
+    // External mode: Supabase
     const { data: currentUser, error: fetchError } = await supabase
       .from("users")
       .select("credits_available")

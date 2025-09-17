@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { useAuthContext } from "@/providers/Auth";
 import { supabase } from "@/lib/auth/supabase-client";
+import { isLocalMode } from "@/lib/environment";
 
 interface CreditsContextProps {
   credits: number | null;
@@ -42,20 +43,31 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       setError(null);
 
-      const { data, error: supabaseError } = await supabase
-        .from("users")
-        .select("credits_available")
-        .eq("id", user.id)
-        .single();
+      if (isLocalMode()) {
+        const res = await fetch(`/api/user/credits?userId=${user.id}`);
+        const data = await res.json();
+        if (!res.ok) {
+          console.error("Error fetching credits:", data?.error);
+          setError("Failed to fetch credits");
+          setCredits(0);
+          return;
+        }
+        setCredits((data?.credits as number) ?? 0);
+      } else {
+        const { data, error: supabaseError } = await supabase
+          .from("users")
+          .select("credits_available")
+          .eq("id", user.id)
+          .single();
 
-      if (supabaseError) {
-        console.error("Error fetching credits:", supabaseError);
-        setError("Failed to fetch credits");
-        setCredits(0); // Fallback to 0 credits
-        return;
+        if (supabaseError) {
+          console.error("Error fetching credits:", supabaseError);
+          setError("Failed to fetch credits");
+          setCredits(0);
+          return;
+        }
+        setCredits((data?.credits_available as number) ?? 0);
       }
-
-      setCredits((data?.credits_available as number) ?? 0);
     } catch (err) {
       console.error("Error fetching credits:", err);
       setError("Failed to fetch credits");

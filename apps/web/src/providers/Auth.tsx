@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { SupabaseAuthProvider } from "@/lib/auth/supabase-utils";
+import { createAuthProvider } from "@/lib/auth/provider-factory";
 import {
   AuthProvider as CustomAuthProvider,
   Session,
@@ -39,11 +40,8 @@ interface AuthContextProps {
   }>;
 }
 
-// Create default authentication provider (Supabase in this case)
-const authProvider = new SupabaseAuthProvider({
-  redirectUrl:
-    typeof window !== "undefined" ? window.location.origin : undefined,
-});
+// Create default authentication provider (Supabase by default, Local when LOCAL_MODE)
+const authProvider = createAuthProvider();
 
 // Create auth context
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);

@@ -14,10 +14,11 @@ import {
 import { Elements, useStripe } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import { createCheckoutSession } from "@/lib/stripe";
-import { useUser } from "@/lib/auth/supabase-client";
+import { useAuthContext } from "@/providers/Auth";
 import { toast } from "sonner";
 import { Navbar } from "@/components/navbar";
 import { PLAN_INFO } from "@/lib/stripe-config";
+import { isLocalMode } from "@/lib/environment";
 
 // Initialize Stripe
 const stripePromise = loadStripe(
@@ -27,8 +28,8 @@ const stripePromise = loadStripe(
 // Child component that uses the useStripe hook
 function PricingContent() {
   const [loading, setLoading] = useState<string | null>(null);
-  const { user } = useUser();
-  const stripe = useStripe();
+  const { user } = useAuthContext();
+  const stripe = isLocalMode() ? null : useStripe();
 
   const tiers = [
     {
@@ -100,7 +101,7 @@ function PricingContent() {
       return;
     }
 
-    if (!stripe) {
+    if (!isLocalMode() && !stripe) {
       toast.error("Stripe not loaded. Please try again.");
       return;
     }
@@ -109,16 +110,26 @@ function PricingContent() {
       setLoading(priceId);
 
       // Create checkout session
-      const { sessionId } = await createCheckoutSession({
+      const { sessionId, successUrl } = await createCheckoutSession({
         priceId,
         userId: user.id,
         customerEmail: user.email,
       });
 
-      // Redirect to Stripe Checkout using React Stripe JS
-      const { error } = await stripe.redirectToCheckout({ sessionId });
-      if (error) {
-        toast.error(error.message);
+      if (isLocalMode()) {
+        // In Local Mode, skip Stripe redirect and go straight to success
+        if (successUrl) {
+          window.location.href = successUrl;
+          return;
+        }
+        // Fallback: go to success page with fake session id
+        window.location.href = `/success?session_id=${sessionId}`;
+      } else if (stripe) {
+        // Redirect to Stripe Checkout using React Stripe JS
+        const { error } = await stripe.redirectToCheckout({ sessionId });
+        if (error) {
+          toast.error(error.message);
+        }
       }
     } catch (error) {
       console.error("Failed to create checkout session:", error);

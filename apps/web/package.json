@@ -21,7 +21,11 @@
     "lint:fix": "next lint --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "clean": "rm -rf .next dist"
+    "clean": "rm -rf .next dist",
+    "prisma:generate": "prisma generate",
+    "prisma:db:push": "prisma db push",
+    "setup:self-contained": "pnpm prisma:generate && pnpm prisma:db:push",
+    "dev:self-contained": "LOCAL_MODE=true NEXT_PUBLIC_LOCAL_MODE=true next dev"
   },
   "dependencies": {
     "@langchain/core": "^0.3.44",
@@ -56,6 +60,9 @@
     "nuqs": "^2.4.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "@prisma/client": "^5.21.1",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
     "react-markdown": "^10.0.1",
     "react-syntax-highlighter": "^15.5.0",
     "recharts": "^2.15.1",
@@ -94,6 +101,9 @@
     "tailwind-scrollbar": "^4.0.1",
     "tailwindcss": "^4.0.13",
     "typescript": "~5.7.2",
+    "prisma": "^5.21.1",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/bcryptjs": "^2.4.6",
     "typescript-eslint": "^8.22.0"
   },
   "overrides": {

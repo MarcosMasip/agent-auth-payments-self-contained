@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseServer } from "@/lib/auth/supabase-server";
+import { isLocalMode } from "@/lib/environment";
+import { getCreditLimitByPriceId } from "@/lib/stripe-config";
+import { upsertSubscriptionFromPrice } from "@/lib/db/users";
 
 type SessionCreateParams = Stripe.Checkout.SessionCreateParams;
 
@@ -27,6 +30,18 @@ export async function POST(request: Request) {
         { error: "Missing required parameters" },
         { status: 400 },
       );
+    }
+
+    // Local Mode: mock checkout session and auto-"webhook" behavior
+    if (isLocalMode()) {
+      const sessionId = `sess_local_${Math.random().toString(36).slice(2, 10)}`;
+      // Immediately grant credits and set subscription as active
+      const credits = getCreditLimitByPriceId(priceId);
+      await upsertSubscriptionFromPrice(userId, priceId, credits, customerEmail);
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+      console.log("[LOCAL_MODE] Mock checkout created and applied:", { userId, priceId, credits, sessionId });
+      // Return a sessionId so the UI can follow the same flow (redirect step will be a no-op in local)
+      return NextResponse.json({ sessionId, successUrl: `${baseUrl}/success?session_id=${sessionId}` });
     }
 
     // Verify Stripe is initialized
@@ -117,9 +132,9 @@ export async function POST(request: Request) {
       },
     };
 
-    const session = await stripe.checkout.sessions.create(sessionParams);
+  const session = await stripe.checkout.sessions.create(sessionParams);
 
-    return NextResponse.json({ sessionId: session.id });
+  return NextResponse.json({ sessionId: session.id });
   } catch (error) {
     console.error("Error creating checkout session:", error);
     return NextResponse.json(

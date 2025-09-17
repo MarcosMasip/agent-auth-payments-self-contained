@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/auth/supabase-server";
+import { isLocalMode } from "@/lib/environment";
+import { ensureUserRecord } from "@/lib/db/users";
 
 export async function GET(request: Request) {
   try {
@@ -15,7 +17,17 @@ export async function GET(request: Request) {
 
     console.log("Fetching credits for user:", userId);
 
-    // Get user's credit information from Supabase
+    // Local Mode path: read from local DB via Prisma
+    if (isLocalMode()) {
+      const user = await ensureUserRecord(userId);
+      return NextResponse.json({
+        credits: user.credits_available || 0,
+        subscriptionStatus: user.subscription_status,
+        priceId: user.price_id,
+      });
+    }
+
+    // External mode: Supabase
     const { data: userData, error } = await supabaseServer
       .from("users")
       .select("credits_available, subscription_status, price_id")
