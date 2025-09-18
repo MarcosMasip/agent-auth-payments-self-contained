@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode } from "react";
+import React, { createContext, useContext, ReactNode, useState, useMemo } from "react";
 import { useStream } from "@langchain/langgraph-sdk/react";
 import { type Message } from "@langchain/langgraph-sdk";
 import {
@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { LangGraphLogoSVG } from "@/components/icons/langgraph";
 import { Label } from "@/components/ui/label";
 import { ArrowRight } from "lucide-react";
-
 import { useThreads } from "./Thread";
 import { useAuthContext } from "@/providers/Auth";
 
@@ -39,30 +38,20 @@ async function sleep(ms = 4000) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const StreamSession = ({
-  children,
-  apiUrl,
-  assistantId,
-}: {
-  children: ReactNode;
-  apiUrl: string;
-  assistantId: string;
-}) => {
+// Inner component that actually establishes the stream connection once authenticated
+const StreamConnected = ({ children, apiUrl, assistantId, jwt }: { children: ReactNode; apiUrl: string; assistantId: string; jwt: string }) => {
   const [threadId, setThreadId] = useQueryState("threadId");
   const { getThreads, setThreads } = useThreads();
-  const { session, isLoading: authLoading } = useAuthContext();
-  const jwt = session?.accessToken || undefined;
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const streamValue = useTypedStream({
     apiUrl,
     assistantId,
     threadId: threadId ?? null,
-    defaultHeaders: jwt
-      ? {
-          Authorization: `Bearer ${jwt}`,
-          "x-supabase-access-token": jwt,
-        }
-      : undefined,
+    defaultHeaders: {
+      Authorization: `Bearer ${jwt}`,
+      "x-supabase-access-token": jwt,
+    },
     onCustomEvent: (event, options) => {
       if (isUIMessage(event) || isRemoveUIMessage(event)) {
         options.mutate((prev) => {
@@ -73,13 +62,70 @@ const StreamSession = ({
     },
     onThreadId: (id) => {
       setThreadId(id);
-      // Refetch threads list when thread ID changes.
-      // Wait for some seconds before fetching so we're able to get the new thread that was created.
       sleep().then(() => getThreads().then(setThreads).catch(console.error));
+    },
+    onError: (err) => {
+      let message: string;
+      if (err instanceof Event) {
+        message = `Unable to establish stream with ${apiUrl}. Ensure the agents server is running (dev:self-contained) and reachable.`;
+      } else if (err && typeof err === "object" && "message" in err) {
+        // @ts-expect-error
+        message = err.message || "Unknown streaming error";
+      } else {
+        message = String(err);
+      }
+      console.error("[StreamConnected] stream error", err);
+      setConnectionError(message);
     },
   });
 
-  // Don't render children until auth is fully loaded
+  const resetConnection = () => {
+    setConnectionError(null);
+  setThreadId((prev) => prev ?? null);
+  };
+
+  if (connectionError) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center p-4">
+        <div className="max-w-md space-y-4 rounded-lg border bg-background p-6 text-center shadow-sm">
+          <h2 className="text-lg font-semibold">Connection Issue</h2>
+            <p className="text-muted-foreground text-sm whitespace-pre-line">{connectionError}</p>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={resetConnection}
+              className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:opacity-90"
+            >
+              Retry Connection
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <StreamContext.Provider value={streamValue}>{children}</StreamContext.Provider>
+  );
+};
+
+const StreamSession = ({
+  children,
+  apiUrl,
+  assistantId,
+}: {
+  children: ReactNode;
+  apiUrl: string;
+  assistantId: string;
+}) => {
+  const { session, isLoading: authLoading, isAuthenticated } = useAuthContext();
+  const jwt = session?.accessToken;
+
   if (authLoading) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">
@@ -91,10 +137,38 @@ const StreamSession = ({
     );
   }
 
+  if (!isAuthenticated || !jwt) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center p-4">
+        <div className="max-w-md rounded-lg border bg-background p-8 text-center shadow-sm">
+          <LangGraphLogoSVG className="mx-auto mb-4 h-10" />
+          <h2 className="mb-2 text-xl font-semibold tracking-tight">Sign in to start chatting</h2>
+          <p className="text-muted-foreground mb-6 text-sm">
+            You need to create an account or sign in before starting a chat. This lets us track your local credits and associate threads with your user.
+          </p>
+          <div className="flex flex-col gap-3">
+            <a
+              href="/signup"
+              className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:opacity-90"
+            >
+              Create account
+            </a>
+            <a
+              href="/signin"
+              className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              Sign in
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <StreamContext.Provider value={streamValue}>
+    <StreamConnected apiUrl={apiUrl} assistantId={assistantId} jwt={jwt}>
       {children}
-    </StreamContext.Provider>
+    </StreamConnected>
   );
 };
 
@@ -122,8 +196,19 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
   const finalApiUrl = apiUrl || envApiUrl;
   const finalAssistantId = assistantId || envAssistantId;
 
-  // Show the form if we: don't have an API URL, or don't have an assistant ID
-  if (!finalApiUrl || !finalAssistantId) {
+  // Basic apiUrl validation
+  const apiUrlInvalid = useMemo(() => {
+    if (!finalApiUrl) return true;
+    try {
+      const u = new URL(finalApiUrl);
+      return !(u.protocol === "http:" || u.protocol === "https:");
+    } catch {
+      return true;
+    }
+  }, [finalApiUrl]);
+
+  // Show the form if we: don't have an API URL, assistant ID, or invalid url
+  if (!finalApiUrl || !finalAssistantId || apiUrlInvalid) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center p-4">
         <div className="animate-in fade-in-0 zoom-in-95 bg-background flex max-w-3xl flex-col rounded-lg border shadow-lg">
@@ -137,6 +222,9 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
             <p className="text-muted-foreground">
               Welcome to Agent Chat! Before you get started, you need to enter
               the URL of the deployment and the assistant / graph ID.
+              {apiUrlInvalid && finalApiUrl ? (
+                <span className="block pt-2 text-sm text-rose-500">The provided API URL is invalid. Please correct it.</span>
+              ) : null}
             </p>
           </div>
           <form
@@ -216,10 +304,7 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
   }
 
   return (
-    <StreamSession
-      apiUrl={apiUrl}
-      assistantId={assistantId}
-    >
+    <StreamSession apiUrl={finalApiUrl} assistantId={finalAssistantId}>
       {children}
     </StreamSession>
   );

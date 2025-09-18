@@ -19,7 +19,7 @@
     "format:check": "pnpm -r format:check",
     "test": "pnpm -r test",
     "test:int": "pnpm -r test:int",
-    "clean": "pnpm -r clean && rm -rf node_modules",
+  "clean": "pnpm -r clean && rimraf node_modules",
     "setup:db": "echo '🗄️  Setting up Supabase database schema...' && echo '' && echo '⚡ Quick setup (requires .env files configured):' && echo 'npx supabase db execute --file supabase-schema.sql --project-ref YOUR_PROJECT_REF' && echo '' && echo '📋 Manual setup (recommended):' && echo '1. Open Supabase Dashboard > SQL Editor' && echo '2. Copy and paste contents of supabase-schema.sql' && echo '3. Click Run' && echo '' && echo '💡 Find your project ref in your Supabase URL: https://YOUR_PROJECT_REF.supabase.co'",
     "web:dev": "pnpm --filter web dev",
     "web:build": "pnpm --filter web build",

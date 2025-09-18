@@ -18,7 +18,7 @@
     "build": "tsc",
     "dev": "langgraphjs dev --no-browser",
   "dev:self-contained": "cross-env LOCAL_MODE=true langgraphjs dev --no-browser --port 2025",
-    "clean": "rm -rf dist",
+  "clean": "rimraf dist",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=\\.test\\.ts$ --testPathIgnorePatterns=\\.int\\.test\\.ts$",
     "test:int": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=\\.int\\.test\\.ts$",
     "lint": "eslint src",
@@ -37,6 +37,7 @@
     "langchain": "^0.3.14"
   },
   "devDependencies": {
+    "rimraf": "^5.0.7",
     "cross-env": "^7.0.3",
     "@eslint/eslintrc": "^3.1.0",
     "@eslint/js": "^9.9.1",

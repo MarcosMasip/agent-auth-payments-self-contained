@@ -21,7 +21,7 @@
     "lint:fix": "next lint --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "clean": "rm -rf .next dist",
+  "clean": "rimraf .next dist",
     "prisma:generate": "prisma generate",
     "prisma:db:push": "prisma db push",
     "setup:self-contained": "pnpm prisma:generate && pnpm prisma:db:push",
@@ -79,6 +79,7 @@
     "zustand": "^5.0.5"
   },
   "devDependencies": {
+    "rimraf": "^5.0.7",
     "cross-env": "^7.0.3",
     "@eslint/js": "^9.19.0",
     "@tailwindcss/postcss": "^4.0.13",

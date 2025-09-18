@@ -172,6 +172,15 @@ Set `LOCAL_MODE=false` (and remove `NEXT_PUBLIC_LOCAL_MODE`) in both apps’ env
    - Open DevTools Network tab, check `/api/create-checkout-session` and subsequent `/api/user/credits` calls return 200.
    - Ensure the local DB file exists: `ls apps/web/.data/dev.db`. If missing, rerun `pnpm run setup:self-contained`.
 
+## Cross‑Platform Notes (macOS / Linux / Windows)
+
+- Environment variables: All scripts that set env vars use `cross-env`, so they work in PowerShell, Command Prompt, bash, and zsh.
+- Parallel processes: `concurrently` is shell-agnostic; no reliance on `&` or subshells.
+- Clean scripts: Use `rimraf` instead of `rm -rf` for Windows compatibility.
+- Port conflicts: Windows PowerShell example is provided; on Linux/macOS you can also use `lsof -i :2025` to inspect processes.
+- Line endings: Git attributes not customized; if contributors use Windows, ensure `core.autocrlf` is set appropriately (no functional impact on build).
+- Optional tools (Stripe CLI, Supabase CLI) are not required for Local Mode; they are only needed when switching to cloud mode.
+
 ## Repo structure (unchanged high‑level)
 
 ```
