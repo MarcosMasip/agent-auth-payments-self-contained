@@ -6,6 +6,7 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { ConfigurationSchema, ensureConfiguration } from "./configuration.js";
 import { TOOLS } from "./tools.js";
 import { loadChatModel } from "./utils.js";
+import { getLocalModel } from "./model-provider.js";
 
 // Define the function that calls the model
 async function callModel(
@@ -16,9 +17,10 @@ async function callModel(
   const configuration = ensureConfiguration(config);
 
   // Feel free to customize the prompt, model, and other logic!
-  const model = (await loadChatModel(configuration.model)).bindTools(TOOLS);
+  const baseModel = await loadChatModel(configuration.model);
+  const model = baseModel.bindTools(TOOLS);
 
-  const response = await model.invoke([
+  const promptMessages = [
     {
       role: "system",
       content: configuration.systemPromptTemplate.replace(
@@ -27,7 +29,55 @@ async function callModel(
       ),
     },
     ...state.messages,
-  ]);
+  ];
+
+  let response: any;
+  try {
+    response = await model.invoke(promptMessages as any);
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    const isMissingModel = /model '?.+?'? not found/i.test(msg) || /404/.test(msg);
+    if (process.env.LOCAL_MODE === 'true' && isMissingModel) {
+      console.warn('[ollama] Missing model detected during invoke, falling back to mock:', msg);
+      const { model: fallback } = await getLocalModel(); // second call will return mock due to earlier detection failure
+      try {
+        response = await fallback.bindTools(TOOLS).invoke(promptMessages as any);
+        (response as any)._fallback_reason = 'ollama_model_missing_runtime';
+      } catch (inner) {
+        throw inner; // propagate if even mock fails
+      }
+    } else {
+      throw err;
+    }
+  }
+
+  // Heuristic credit estimation only in LOCAL_MODE
+  if (process.env.LOCAL_MODE === "true") {
+    try {
+      const { meta } = await getLocalModel();
+      const userContent = state.messages
+        .filter((m: any) => m.role === "user")
+        .map((m: any) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+        .join("\n");
+      const completionContent = (response as any)?.content ?? "";
+      const promptChars = userContent.length;
+      const completionChars = typeof completionContent === "string" ? completionContent.length : JSON.stringify(completionContent).length;
+      const approxTokens = Math.max(1, Math.ceil((promptChars + completionChars) / 4));
+      const divisor = parseInt(process.env.OLLAMA_CREDIT_DIVISOR || "1000", 10);
+      const creditsUsed = Math.max(1, Math.ceil(approxTokens / divisor));
+      // Attach metadata so UI could optionally use it later
+      (response as any)._local_credit_estimate = {
+        provider: meta.provider,
+        model: meta.modelName,
+        degraded: meta.degraded,
+        approxTokens,
+        creditsUsed,
+        divisor,
+      };
+    } catch (e) {
+      console.warn("[credits] Unable to compute credit estimate", e);
+    }
+  }
 
   // We return a list, because this will get added to the existing list
   return { messages: [response] };

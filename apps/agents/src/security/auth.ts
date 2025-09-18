@@ -39,6 +39,16 @@ export const auth = new Auth()
         display_name: "CORS Preflight",
       };
     }
+    const localMode = process.env.LOCAL_MODE === "true";
+    const url = new URL(request.url);
+    if (localMode && (url.pathname === "/healthz" || url.pathname === "/")) {
+      return {
+        identity: "anonymous",
+        permissions: [],
+        is_authenticated: false,
+        display_name: "Health",
+      };
+    }
     const headersObj: Record<string, string> = {};
     for (const [key, value] of Object.entries(request.headers)) {
       headersObj[key] = value;
@@ -64,7 +74,7 @@ export const auth = new Auth()
       });
     }
     // Local Mode: verify signed JWT from web app directly
-    const localMode = process.env.LOCAL_MODE === "true";
+  // localMode already computed above
     let user: User | null = null;
     if (localMode) {
       try {

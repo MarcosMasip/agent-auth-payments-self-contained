@@ -11,7 +11,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "dev": "pnpm -r --parallel dev",
-  "dev:self-contained": "pnpm --filter web setup:self-contained && concurrently -k -n web,agents -c blue,magenta \"pnpm --filter web dev:self-contained\" \"pnpm --filter agents dev:self-contained\"",
+    "dev:self-contained": "pnpm --filter web setup:self-contained && concurrently -k -n web,agents -c blue,magenta \"pnpm --filter web dev:self-contained\" \"pnpm --filter agents dev:self-contained\"",
     "setup:self-contained": "pnpm --filter web setup:self-contained",
     "lint": "pnpm -r lint",
     "lint:fix": "pnpm -r lint:fix",
@@ -19,14 +19,16 @@
     "format:check": "pnpm -r format:check",
     "test": "pnpm -r test",
     "test:int": "pnpm -r test:int",
-  "clean": "pnpm -r clean && rimraf node_modules",
+    "clean": "pnpm -r clean && rimraf node_modules",
     "setup:db": "echo '🗄️  Setting up Supabase database schema...' && echo '' && echo '⚡ Quick setup (requires .env files configured):' && echo 'npx supabase db execute --file supabase-schema.sql --project-ref YOUR_PROJECT_REF' && echo '' && echo '📋 Manual setup (recommended):' && echo '1. Open Supabase Dashboard > SQL Editor' && echo '2. Copy and paste contents of supabase-schema.sql' && echo '3. Click Run' && echo '' && echo '💡 Find your project ref in your Supabase URL: https://YOUR_PROJECT_REF.supabase.co'",
     "web:dev": "pnpm --filter web dev",
     "web:build": "pnpm --filter web build",
     "agents:dev": "pnpm --filter agents dev",
     "agents:build": "pnpm --filter agents build",
     "agents:test": "pnpm --filter agents test",
-    "agents:test:int": "pnpm --filter agents test:int"
+    "agents:test:int": "pnpm --filter agents test:int",
+    "ollama:pull": "node scripts/pull-ollama-model.cjs",
+    "verify:self-contained": "pnpm lint && pnpm format:check && pnpm --filter web build && pnpm --filter agents build"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

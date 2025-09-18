@@ -1,5 +1,5 @@
 import { initChatModel } from "langchain/chat_models/universal";
-import { MockChatModel } from "./mock-model.js";
+import { getLocalModel } from "./model-provider.js";
 
 /**
  * Load a chat model from a fully specified name.
@@ -8,7 +8,8 @@ import { MockChatModel } from "./mock-model.js";
  */
 export async function loadChatModel(fullySpecifiedName: string) {
   if (process.env.LOCAL_MODE === "true") {
-    return new MockChatModel();
+    const { model } = await getLocalModel();
+    return model as any; // loosely typed minimal interface
   }
   const index = fullySpecifiedName.indexOf("/");
   if (index === -1) {
