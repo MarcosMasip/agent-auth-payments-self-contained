@@ -98,8 +98,8 @@ const StreamSession = ({
   );
 };
 
-// Default values for the form
-const DEFAULT_API_URL = "http://localhost:2024";
+// Default values for the form (align with agents dev:self-contained port)
+const DEFAULT_API_URL = "http://localhost:2025";
 const DEFAULT_ASSISTANT_ID = "agent";
 
 export const StreamProvider: React.FC<{ children: ReactNode }> = ({

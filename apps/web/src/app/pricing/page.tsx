@@ -20,10 +20,10 @@ import { Navbar } from "@/components/navbar";
 import { PLAN_INFO } from "@/lib/stripe-config";
 import { isLocalMode } from "@/lib/environment";
 
-// Initialize Stripe
-const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "",
-);
+// Initialize Stripe only when not in Local Mode
+const stripePromise = !isLocalMode()
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "")
+  : null;
 
 // Child component that uses the useStripe hook
 function PricingContent() {
@@ -264,8 +264,16 @@ function PricingContent() {
 
 // Main component wrapped with Elements provider
 export default function PricingPage() {
+  if (isLocalMode()) {
+    return (
+      <>
+        <Navbar />
+        <PricingContent />
+      </>
+    );
+  }
   return (
-    <Elements stripe={stripePromise}>
+    <Elements stripe={stripePromise!}>
       <Navbar />
       <PricingContent />
     </Elements>

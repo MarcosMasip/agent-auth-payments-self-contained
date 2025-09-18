@@ -94,7 +94,7 @@ function OpenGitHubRepo() {
       <Tooltip>
         <TooltipTrigger asChild>
           <a
-            href="https://github.com/langchain-ai/agent-chat-ui"
+            href="https://github.com/MarcosMasip/agent-auth-payments-self-contained"
             target="_blank"
             className="flex items-center justify-center"
           >

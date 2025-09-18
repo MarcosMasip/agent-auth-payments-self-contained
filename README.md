@@ -156,6 +156,22 @@ Set `LOCAL_MODE=false` (and remove `NEXT_PUBLIC_LOCAL_MODE`) in both apps’ env
 - “Authorization header missing” from agents
    - Make sure you’re signed in locally so the app can forward the JWT to agents. The StreamProvider includes the `Authorization: Bearer <JWT>` header when a session is present.
 
+- Stripe IntegrationError (publishable key empty) in Local Mode
+   - Expected if Stripe init wasn’t fully guarded. Local Mode does NOT require any Stripe keys; the pricing page now skips Stripe. If you still see it, clear your browser cache and ensure `NEXT_PUBLIC_LOCAL_MODE=true` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is blank.
+
+- Chat page shows a form asking for API URL / Assistant ID
+   - This appears if `NEXT_PUBLIC_API_URL` or `NEXT_PUBLIC_ASSISTANT_ID` are missing. In Local Mode they should be set in `apps/web/.env.local` (defaults: http://localhost:2025 and `agent`). Restart `pnpm run dev:self-contained` after editing.
+
+- Chat fails with “Failed to fetch” (langgraph-sdk)
+   - Confirm the agents server is running (see terminal: should show `Server running at ::1:2025`).
+   - Check `NEXT_PUBLIC_API_URL` matches that port.
+   - If you changed the agents port, update `NEXT_PUBLIC_API_URL` and restart the web app.
+   - Browser extensions (ad/privacy filters) can block local fetches; try an incognito window.
+
+- Credits not updating after mock checkout
+   - Open DevTools Network tab, check `/api/create-checkout-session` and subsequent `/api/user/credits` calls return 200.
+   - Ensure the local DB file exists: `ls apps/web/.data/dev.db`. If missing, rerun `pnpm run setup:self-contained`.
+
 ## Repo structure (unchanged high‑level)
 
 ```
