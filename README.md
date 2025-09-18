@@ -36,7 +36,7 @@ Importantly, the HTTP surface and UI flow are the same. When you flip off Local 
    - Windows (PowerShell): `corepack enable; corepack prepare pnpm@latest --activate`
 - Works on macOS, Linux, and Windows
 
-## One‑time setup (install deps + DB)
+## One‑time setup (install deps + DB) — Fully Automated
 
 From the repo root:
 
@@ -45,18 +45,22 @@ pnpm install
 pnpm run setup:self-contained
 ```
 
-What to expect:
-- pnpm installs dependencies in all workspaces
-- Approve build scripts when prompted (Prisma, esbuild, etc.)
-- Prisma generates the client and pushes the schema to a local SQLite file at `apps/web/.data/dev.db`
+No manual copying of `.env` files required.
 
-Config files created by default:
-- `apps/web/.env.local` with:
-   - `LOCAL_MODE=true`, `NEXT_PUBLIC_LOCAL_MODE=true`
-   - `DATABASE_URL="file:./.data/dev.db"`
-   - `NEXT_PUBLIC_API_URL=http://localhost:2025` (agents)
-   - A default `LOCAL_JWT_SECRET`
-- `apps/agents/.env.local` with `LOCAL_MODE=true` and the same `LOCAL_JWT_SECRET`
+What happens:
+1. `scripts/ensure-local-env.mjs` auto‑creates `apps/web/.env` and `apps/agents/.env` (idempotent) with safe Local Mode defaults.
+2. Prisma client is generated and schema pushed to `apps/web/.data/dev.db`.
+
+Re-run any time. To regenerate defaults (overwriting only missing keys, unless you force):
+```bash
+node scripts/ensure-local-env.mjs --force
+```
+
+Created/ensured files now:
+- `apps/web/.env` (LOCAL_MODE, NEXT_PUBLIC_LOCAL_MODE, DATABASE_URL, NEXT_PUBLIC_API_URL, NEXT_PUBLIC_ASSISTANT_ID, NEXT_PUBLIC_BASE_URL, NEXT_PUBLIC_GOOGLE_AUTH_DISABLED, LOCAL_JWT_SECRET)
+- `apps/agents/.env` (LOCAL_MODE, LOCAL_JWT_SECRET)
+
+If you ever see Prisma error `P1012 Environment variable not found: DATABASE_URL`, just re-run the setup command.
 
 ## Start everything (one command)
 
@@ -504,3 +508,18 @@ Each app can be deployed independently:
 4. Run tests: `pnpm test`
 5. Format code: `pnpm format`
 6. Submit a pull request
+
+## Preventing Setup Regressions
+
+Built-in safeguards:
+- `scripts/ensure-local-env.mjs` runs on every `pnpm run setup:self-contained` and when invoking the web workspace setup directly.
+- Script is path-agnostic: it resolves repo root from its own location.
+- Add new Local Mode required env vars by editing the defaults in that script; fresh clones continue to work.
+
+Optional CI smoke test:
+```bash
+pnpm install
+pnpm run setup:self-contained
+pnpm --filter web exec prisma validate
+```
+Stretch idea: add an automated local signup + mock checkout test to assert credits increment.
