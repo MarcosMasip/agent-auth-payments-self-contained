@@ -37,12 +37,16 @@ async function callModel(
   } catch (err: any) {
     const msg = String(err?.message || err);
     const isMissingModel = /model '?.+?'? not found/i.test(msg) || /404/.test(msg);
-    if (process.env.LOCAL_MODE === 'true' && isMissingModel) {
-      console.warn('[ollama] Missing model detected during invoke, falling back to mock:', msg);
-      const { model: fallback } = await getLocalModel(); // second call will return mock due to earlier detection failure
+    const isNetworkish = /ECONNREFUSED|ENOTFOUND|timed out|fetch failed|network error|EHOSTUNREACH/i.test(msg);
+    if (process.env.LOCAL_MODE === 'true') {
+      const reason = isMissingModel
+        ? 'ollama_model_missing_runtime'
+        : (isNetworkish ? 'ollama_network_error_runtime' : 'ollama_error_runtime');
+      console.warn(`[ollama] Error during invoke in LOCAL_MODE, falling back to mock [${reason}]:`, msg);
+      const { model: fallback } = await getLocalModel();
       try {
         response = await fallback.bindTools(TOOLS).invoke(promptMessages as any);
-        (response as any)._fallback_reason = 'ollama_model_missing_runtime';
+        (response as any)._fallback_reason = reason;
       } catch (inner) {
         throw inner; // propagate if even mock fails
       }
