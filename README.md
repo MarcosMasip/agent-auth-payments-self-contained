@@ -24,7 +24,7 @@ Why this change? To let anyone clone, run, and evaluate the full experience with
    - Self‑Contained Mode: MockChatModel returns deterministic responses; Tavily tool is mocked to avoid external API keys.
 - LangGraph server:
    - Original: You’d deploy to LangGraph Cloud or run locally.
-   - Self‑Contained Mode: A local LangGraph server runs at http://localhost:2025 and the Next.js app proxies to it.
+   - Self‑Contained Mode: A local LangGraph server runs on a free local port (2025 preferred) and the Next.js app proxies to it. The dev launcher auto‑detects a free port and injects the correct `NEXT_PUBLIC_API_URL` into the web app at runtime.
 
 Importantly, the HTTP surface and UI flow are the same. When you flip off Local Mode, the app reuses the original Supabase/Stripe integrations.
 
@@ -71,14 +71,15 @@ pnpm run dev:self-contained
 ```
 
 What to expect:
-- Next.js dev server on http://localhost:3002 (it may pick 3001/3002 if 3000 is in use; the URL is printed)
-- LangGraph local server on http://localhost:2025
+- Next.js dev server on http://localhost:30xx (it auto‑selects if 3000 is in use; the URL is printed)
+- LangGraph local server on http://localhost:<agentsPort> (auto‑picked; the selected port is printed)
+- The launcher sets `NEXT_PUBLIC_API_URL` for you so the web app always points at the chosen agents port.
 
-If a port is busy, the command will either auto-pick a new one (Next.js) or print an EADDRINUSE error (LangGraph). See Troubleshooting.
+If a port is busy, the command auto‑picks a new one for both Next.js and the agents server. See Troubleshooting if you’re starting apps manually.
 
 ## Try it out
 
-1) Open the app: http://localhost:3002
+1) Open the app: http://localhost:30xx (check the Next.js console for the exact port)
 2) Sign up → Sign in (Local Mode)
     - The app sets an HttpOnly cookie `local_session` and shows you as authenticated.
 3) Go to Pricing and click “Subscribe now” on any plan
@@ -103,20 +104,21 @@ If a port is busy, the command will either auto-pick a new one (Next.js) or prin
    pnpm run dev:self-contained
    ```
    Expect:
-   - Next.js banner with the Local URL (e.g., http://localhost:3002)
-   - LangGraph banner with API URL (http://localhost:2025) and “Server running at …”
+   - Next.js banner with the Local URL (e.g., http://localhost:30xx)
+   - LangGraph banner with API URL (http://localhost:<agentsPort>) and “Server running at …”
 
 - Start agents only
    ```sh
    pnpm --filter agents run dev:self-contained
    ```
-   Expect LangGraph banner and “Server running at ::1:2025”. If port 2025 is taken, add `--port 2026`.
+   Expect LangGraph banner and “Server running at ::1:<port>”. Default is 2025; if it’s taken, add `--port 2026`.
+   If you run agents separately (without the dev launcher), ensure the web app points at the same port by setting `NEXT_PUBLIC_API_URL` in `apps/web/.env`.
 
 - Start web only
    ```sh
    pnpm --filter web run dev:self-contained
    ```
-   Expect Next.js dev banner; it will show the chosen http://localhost:30xx URL.
+   Expect Next.js dev banner; it will show the chosen http://localhost:30xx URL. If you’re running agents separately, set `NEXT_PUBLIC_API_URL` in `apps/web/.env` to the agents URL before starting.
 
 ## How Local Mode works (under the hood)
 
@@ -137,19 +139,21 @@ Set `LOCAL_MODE=false` (and remove `NEXT_PUBLIC_LOCAL_MODE`) in both apps’ env
 ## Troubleshooting
 
 - Port in use (agents 2025):
-    - macOS/Linux: stop existing `langgraphjs` process
+    - Using the one‑command launcher (`pnpm run dev:self-contained`): the script auto‑selects a free agents port; no action needed.
+    - If starting agents manually and 2025 is busy:
+      - macOS/Linux: stop existing `langgraphjs` process
        ```bash
        pkill -f langgraphjs
        ```
-    - Windows (PowerShell): stop process on port 2025
+      - Windows (PowerShell): stop process on port 2025
        ```powershell
        for /f "tokens=5" %a in ('netstat -aon ^| find ":2025" ^| find "LISTEN"') do taskkill /f /pid %a
        ```
-    - Or change port (all OSes):
+      - Or change port (all OSes):
        ```bash
        pnpm --filter agents run dev:self-contained -- --port 2026
        ```
-       Then set `NEXT_PUBLIC_API_URL=http://localhost:2026` in `apps/web/.env.local`.
+       Then set `NEXT_PUBLIC_API_URL=http://localhost:2026` in `apps/web/.env` if you’re not using the launcher.
 
 - Next.js picks a different port than 3000
    - That’s expected if 3000 is busy. Use the URL printed in the console.
@@ -164,12 +168,12 @@ Set `LOCAL_MODE=false` (and remove `NEXT_PUBLIC_LOCAL_MODE`) in both apps’ env
    - Expected if Stripe init wasn’t fully guarded. Local Mode does NOT require any Stripe keys; the pricing page now skips Stripe. If you still see it, clear your browser cache and ensure `NEXT_PUBLIC_LOCAL_MODE=true` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is blank.
 
 - Chat page shows a form asking for API URL / Assistant ID
-   - This appears if `NEXT_PUBLIC_API_URL` or `NEXT_PUBLIC_ASSISTANT_ID` are missing. In Local Mode they should be set in `apps/web/.env.local` (defaults: http://localhost:2025 and `agent`). Restart `pnpm run dev:self-contained` after editing.
+   - This appears if `NEXT_PUBLIC_API_URL` or `NEXT_PUBLIC_ASSISTANT_ID` are missing. In Local Mode they should be set in `apps/web/.env` (defaults created by the setup script: http://localhost:2025 and `agent`). When using the one‑command launcher, it injects the correct API URL at runtime.
 
 - Chat fails with “Failed to fetch” (langgraph-sdk)
    - Confirm the agents server is running (see terminal: should show `Server running at ::1:2025`).
-   - Check `NEXT_PUBLIC_API_URL` matches that port.
-   - If you changed the agents port, update `NEXT_PUBLIC_API_URL` and restart the web app.
+   - Check `NEXT_PUBLIC_API_URL` matches that port. The one‑command launcher sets this automatically.
+   - If you changed the agents port while running apps separately, update `NEXT_PUBLIC_API_URL` in `apps/web/.env` and restart the web app.
    - Browser extensions (ad/privacy filters) can block local fetches; try an incognito window.
 
 - Credits not updating after mock checkout
@@ -199,11 +203,19 @@ That’s it—if Ollama responds at `http://localhost:11434` the agents app will
 
 ### Configuration (Optional)
 
-By default (no `OLLAMA_MODEL` set) the system now auto‑selects the *smallest* locally installed model exposed by `GET /api/tags`. It inspects tag names like `smollm:135m`, `phi`, `phi3:3.8b`, `qwen2.5:0.5b`, `mistral`, `llama3:8b` and heuristically derives parameter counts. If more than one model is installed it picks the lowest parameter count; ties are broken alphabetically. If no models are installed or an error occurs, it falls back to the mock provider.
+By default (no `OLLAMA_MODEL` set) the system auto‑selects the smallest model from a small allow‑list of common lightweight tags, based on what is installed and reported by `GET /api/tags`:
+
+- smollm:135m (smallest)
+- tinyllama
+- phi
+- mistral
+- llama3
+
+If more than one of the above is installed, the smallest is chosen; ties break alphabetically. If none are installed or any error occurs, the provider falls back to the mock model.
 
 Override auto‑selection by setting `OLLAMA_MODEL` explicitly:
 
-Environment variables (in `apps/agents/.env.local`):
+Environment variables (in `apps/agents/.env`):
 - `OLLAMA_MODEL=smollm:135m` (example override; if omitted the smallest installed model is used)
 - `OLLAMA_BASE_URL=http://localhost:11434` (change if you proxy)
 - `OLLAMA_CREDIT_DIVISOR=1000` (credit heuristic tuning)
@@ -218,18 +230,19 @@ Heuristic size parsing rules (simplified):
 | `mistral` | 7,000,000,000 (assumed) |
 | `llama3:8b` | 8,000,000,000 |
 
-Unknown formats get a very large placeholder value so they are only chosen if they are the *only* model. Set `OLLAMA_MODEL` manually if the heuristic guess is not what you want.
+If you use a different model name, set `OLLAMA_MODEL` explicitly to override.
 
 ### How Auto‑Detection Works
 
 At startup (and when first loading a model) the provider:
 1. Checks `LOCAL_MODE` is true and `OLLAMA_DISABLE_AUTO` is not set
 2. Calls `GET /api/tags` on `OLLAMA_BASE_URL`
-3. If successful, constructs an Ollama model wrapper
+3. Filters to the allow‑list above and chooses the smallest installed model (or the explicit `OLLAMA_MODEL` if set)
 4. On any failure, logs a warning and returns the mock model with `degraded=true`
 
 You can verify which provider is active:
 ```
+# Replace 2025 with the agents port printed by the launcher if different
 curl -s http://localhost:2025/healthz | jq
 ```
 Example healthy Ollama response snippet:
@@ -334,56 +347,21 @@ MIT
 
 This monorepo contains two main applications:
 
-- **`apps/web`** - Next.js chat UI application with LangGraph integration
-- **`apps/agents`** - LangGraph.js ReAct agents backend
+- `apps/web` — Next.js chat UI application with LangGraph integration
+- `apps/agents` — LangGraph.js ReAct agents backend
 
-## 🚀 Quick Start
-### Terminal Tab 1:
+## 🚀 Quick Start (5 commands)
+
 ```bash
-# Clone the repo
-git clone https://github.com/langchain-ai/agentic-saas-template.git```
-
-#  **Environment Files**: Copy the `.env.example` files to `.env` and fill in credentials
-cp apps/web/.env.example apps/web/.env
-cp apps/agents/.env.example apps/agents/.env
-
-# Install dependencies for all apps
+git clone <this repo>
+cd agent-auth-payments-self-contained
+corepack enable && corepack prepare pnpm@latest --activate   # one‑time if pnpm not present
 pnpm install
-
-# Start development servers for both apps
-pnpm dev
+pnpm run setup:self-contained
+pnpm run dev:self-contained
 ```
-### 🗄️ Database Setup
 
-1. **Database Schema**: Copy and paste `supabase-schema.sql` in your Supabase SQL Editor
-
-### What gets set up:
-- ✅ Users table with Stripe integration
-- ✅ Row Level Security (RLS) policies  
-- ✅ Automatic user profile creation
-- ✅ Performance indexes and triggers
-
-### Terminal Tab 2: Stripe Webhook (for purchases + credits)
-
-```bash
-stripe listen --events customer.subscription.created,customer.subscription.updated,customer.subscription.deleted --forward-to localhost:3000/api/webhooks/stripe
-
-## add stripe webhook key to apps/web/.env
-STRIPE_WEBHOOK_SECRET=""
-```
-You're ready to use the app!
-
-### Use the App
-
-```markdown
-1. Open localhost:3000
-2. Sign up -> confirm email
-3. login
-4. pricing page --> purchase credits
-   a. should see stripe events in Terminal Tab 3
-5. should see success page, new credits added
-6. back to home, chat with app, credits get deducted
-```
+No manual `.env` editing, Supabase project, or Stripe webhook is required in Self‑Contained Mode. When you’re ready for cloud mode, see “Switching back to the original (cloud) mode)”.
 
 
 ## 📦 Package Management
