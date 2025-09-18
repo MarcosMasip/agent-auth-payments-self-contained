@@ -195,11 +195,26 @@ That’s it—if Ollama responds at `http://localhost:11434` the agents app will
 
 ### Configuration (Optional)
 
+By default (no `OLLAMA_MODEL` set) the system now auto‑selects the *smallest* locally installed model exposed by `GET /api/tags`. It inspects tag names like `smollm:135m`, `phi`, `phi3:3.8b`, `qwen2.5:0.5b`, `mistral`, `llama3:8b` and heuristically derives parameter counts. If more than one model is installed it picks the lowest parameter count; ties are broken alphabetically. If no models are installed or an error occurs, it falls back to the mock provider.
+
+Override auto‑selection by setting `OLLAMA_MODEL` explicitly:
+
 Environment variables (in `apps/agents/.env.local`):
-- `OLLAMA_MODEL=mistral` (choose another like `phi` or `qwen2.5:0.5b`)
+- `OLLAMA_MODEL=smollm:135m` (example override; if omitted the smallest installed model is used)
 - `OLLAMA_BASE_URL=http://localhost:11434` (change if you proxy)
 - `OLLAMA_CREDIT_DIVISOR=1000` (credit heuristic tuning)
 - `OLLAMA_DISABLE_AUTO=true` (force disable and always use mock even if Ollama is running)
+
+Heuristic size parsing rules (simplified):
+| Example Tag | Parsed Size |
+|-------------|-------------|
+| `smollm:135m` | 135,000,000 |
+| `qwen2.5:0.5b` | 500,000,000 |
+| `phi` | 2,700,000,000 (assumed) |
+| `mistral` | 7,000,000,000 (assumed) |
+| `llama3:8b` | 8,000,000,000 |
+
+Unknown formats get a very large placeholder value so they are only chosen if they are the *only* model. Set `OLLAMA_MODEL` manually if the heuristic guess is not what you want.
 
 ### How Auto‑Detection Works
 
@@ -246,6 +261,7 @@ Running this just ensures first chat response isn’t delayed by a pull.
 | High RAM usage | Switch to a smaller model (`OLLAMA_MODEL=phi`) |
 | Credits seem high | Tune `OLLAMA_CREDIT_DIVISOR` (see below) |
 | 404 model not found (mistral) in browser / console | Pull it: `ollama pull mistral` or change `OLLAMA_MODEL` to an installed one. App will now auto-fallback to mock when missing; refresh after pull to resume real model. |
+| It keeps using a larger model instead of my tiny one | Remove `OLLAMA_MODEL` from env to allow auto-smallest, or set it explicitly to the tiny tag (e.g. `smollm:135m`). Verify with `curl -s http://localhost:2025/healthz`. |
 | `ollama pull <model>` returns "server not responding" but `brew info ollama` shows installed | Start the daemon: `brew services start ollama` (or `open -a Ollama` if cask). Verify with `curl http://localhost:11434/api/tags`. If still failing, run `/opt/homebrew/opt/ollama/bin/ollama serve` in a terminal to foreground it. |
 
 ## Local Credit Heuristic (Ollama)
